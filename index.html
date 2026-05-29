@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>موقع متجر الفواكه المستقل</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+  <script src="https://js.pusher.com/8.3.0/pusher.min.js"></script>
+  <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+        }
+
+        .navbar {
+            background-color: #4caf50 !important;
+        }
+
+        /* لون أخضر مميز للموقع المستقل */
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-dark mb-4 shadow">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">🛒 متجر الفواكه - واجهة الويب المستقلة (Frontend)</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-success text-white fw-bold">إضافة منتج جديد</div>
+                    <div class="card-body">
+                        <form id="productForm">
+                            <div class="mb-3">
+                                <label class="form-label">اسم الفاكهة</label>
+                                <input type="text" id="prodName" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">السعر ($)</label>
+                                <input type="number" step="0.01" id="prodPrice" class="form-control" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 fw-bold">حفظ في قاعدة البيانات</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white fw-bold">المنتجات المتاحة (تحديث حي)</div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>الرقم ID</th>
+                                    <th>الاسم</th>
+                                    <th>السعر</th>
+                                    <th>العمليات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // رابط سيرفر الباك اند (CodeIgniter 4)
+        // يمكنك استخدام localhost:8080 إذا كنت تتصفح من الكمبيوتر نفسه
+        const apiUrl = 'http://first_project.test/product';
+        // 1. جلب البيانات (GET)
+        async function loadProducts() {
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                const tbody = document.getElementById('productsTableBody');
+                tbody.innerHTML = '';
+
+                data.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${item.id}</td>
+                            <td><span class="badge bg-secondary fs-6">${item.name}</span></td>
+                            <td><strong>$${item.price}</strong></td>
+                            <td>
+                                <button class="btn btn-danger btn-sm shadow-sm" onclick="deleteItem(${item.id})">حذف</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                console.error('فشل الاتصال بالسيرفر:', error);
+            }
+        }
+
+        // 2. إرسال بيانات جديدة (POST)
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('prodName').value;
+            const price = document.getElementById('prodPrice').value;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, price: parseFloat(price) })
+                });
+
+                if (response.ok) {
+                    document.getElementById('productForm').reset();
+                    loadProducts(); // إعادة تحديث الجدول
+                }
+            } catch (error) {
+                console.error('حدث خطأ أثناء الإضافة:', error);
+            }
+        });
+
+        // 3. حذف منتج (DELETE)
+        async function deleteItem(id) {
+            if (confirm('هل تريد حذف هذه الفاكهة نهائياً؟')) {
+                try {
+                    const response = await fetch(`${apiUrl}/${id}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        loadProducts();
+                    }
+                } catch (error) {
+                    console.error('حدث خطأ أثناء الحذف:', error);
+                }
+            }
+        }
+
+        // بدلاً من استدعاء الدالة لمرة واحدة فقط عند التحميل:
+        // window.onload = loadProducts;
+
+        // سنجعل المتصفح يذهب للسيرفر ويجلب البيانات تلقائياً كل ثانيتين (2000 مللي ثانية)
+// تشغيل الجلب العادي لأول مرة عند فتح الصفحة
+window.onload = loadProducts;
+
+// ربط الموقع بـ Pusher للـ Real-time الاحترافي
+const pusher = new Pusher('e81ccddff813c8e20675', {
+    cluster: 'ap1'
+});
+
+const channel = pusher.subscribe('fruit-channel');
+channel.bind('update-event', function(data) {
+    console.log('حدث تحديث في قاعدة البيانات، جاري تحديث الجدول...');
+    loadProducts(); // تحديث الجدول فوراً بدون عمل Refresh للمتصفح كامل!
+});
+    </script>
+</body>
+
+</html>
